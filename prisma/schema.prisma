@@ -1,0 +1,454 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  FRONT_DESK
+  ARTIST
+}
+
+enum ConsultationStage {
+  NEW_INQUIRY
+  CONSULT_SCHEDULED
+  AWAITING_DEPOSIT
+  DESIGN_REVIEW
+  BOOKED
+}
+
+enum DepositStatus {
+  NOT_REQUESTED
+  REQUESTED
+  PAID
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  RESCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum DesignApprovalStatus {
+  CONCEPT_SENT
+  REVISION_REQUESTED
+  APPROVED
+  FINALIZED
+}
+
+enum ConsentStatus {
+  PENDING
+  SENT
+  SIGNED
+  EXPIRED
+}
+
+enum DepositEventType {
+  REQUEST
+  PARTIAL_PAYMENT
+  PAYMENT
+  REFUND
+  FAILED
+}
+
+enum ClientPortalPurpose {
+  CONSENT
+  APPROVAL
+}
+
+enum DeliveryChannel {
+  EMAIL
+  SMS
+}
+
+enum PortalDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  UNAVAILABLE
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+  TIKTOK
+  WEBSITE
+}
+
+enum SocialAccountScope {
+  STUDIO
+  ARTIST
+}
+
+enum SocialConnectionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  ERROR
+}
+
+enum SocialLeadStatus {
+  NEW
+  QUALIFIED
+  CONVERTED
+  ARCHIVED
+  SPAM
+}
+
+enum LeadCaptureMethod {
+  LINK_IN_BIO
+  LEAD_FORM
+  WEBHOOK
+  MANUAL_IMPORT
+  DM_IMPORT
+}
+
+enum AuditDomain {
+  DEPOSIT
+  CONSENT
+  APPROVAL
+  SECURITY
+}
+
+model Studio {
+  id             String          @id @default(cuid())
+  name           String
+  slug           String          @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  users          User[]
+  artistProfiles ArtistProfile[]
+  consultations  Consultation[]
+  socialAccounts SocialAccount[]
+  campaignLinks  CampaignLink[]
+  socialLeads    SocialLead[]
+}
+
+model User {
+  id                    String         @id @default(cuid())
+  studioId              String
+  name                  String
+  email                 String         @unique
+  passwordHash          String
+  role                  UserRole
+  isActive              Boolean        @default(true)
+  deactivatedAt         DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  studio                Studio         @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  artistProfile         ArtistProfile?
+  consultationsCreated  Consultation[] @relation("CreatedConsultations")
+  consultationsAssigned Consultation[] @relation("AssignedArtist")
+  appointments          Appointment[]  @relation("AppointmentArtist")
+  designNotes           DesignNote[]   @relation("DesignNoteAuthor")
+  depositEvents         DepositEvent[] @relation("DepositEventActor")
+  infoRequests          SocialLead[]   @relation("InfoRequestedBy")
+  auditLogs             AuditLog[]     @relation("AuditActor")
+}
+
+model Consultation {
+  id               String             @id @default(cuid())
+  studioId         String
+  socialLeadId     String?            @unique
+  clientName       String
+  email            String
+  phone            String
+  placement        String
+  style            String
+  budgetRange      String
+  preferredArtist  String
+  leadSource       String
+  requestedWindow  String
+  ideaSummary      String
+  referenceSummary String
+  stage            ConsultationStage  @default(NEW_INQUIRY)
+  depositStatus    DepositStatus      @default(NOT_REQUESTED)
+  depositAmount    Int?
+  depositPaidAmount Int               @default(0)
+  depositFailureReason String?
+  bookingLocked    Boolean            @default(false)
+  bookingLockedReason String?
+  nextStep         String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  createdById      String?
+  assignedArtistId String?
+  studio           Studio             @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  socialLead       SocialLead?        @relation(fields: [socialLeadId], references: [id], onDelete: SetNull)
+  createdBy        User?              @relation("CreatedConsultations", fields: [createdById], references: [id])
+  assignedArtist   User?              @relation("AssignedArtist", fields: [assignedArtistId], references: [id])
+  appointment      Appointment?
+  designNotes      DesignNote[]
+  approvalEvents   DesignApprovalEvent[]
+  consentForm      ConsentForm?
+  depositEvents    DepositEvent[]
+  portalLinks      ClientPortalLink[]
+  auditLogs        AuditLog[]
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  consultationId  String            @unique
+  artistId        String
+  startsAt        DateTime
+  durationMinutes Int
+  status          AppointmentStatus @default(SCHEDULED)
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  consultation    Consultation      @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  artist          User              @relation("AppointmentArtist", fields: [artistId], references: [id])
+  consentForm     ConsentForm?
+}
+
+model DesignNote {
+  id             String       @id @default(cuid())
+  consultationId String
+  authorId       String
+  note           String
+  createdAt      DateTime     @default(now())
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  author         User         @relation("DesignNoteAuthor", fields: [authorId], references: [id])
+}
+
+model DesignApprovalEvent {
+  id             String               @id @default(cuid())
+  consultationId String
+  status         DesignApprovalStatus
+  note           String?
+  createdAt      DateTime             @default(now())
+  consultation   Consultation         @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+}
+
+model ConsentForm {
+  id                 String        @id @default(cuid())
+  consultationId     String        @unique
+  appointmentId      String?       @unique
+  status             ConsentStatus @default(PENDING)
+  clientLegalName    String
+  emergencyContact   String?
+  emergencyPhone     String?
+  healthNotes        String?
+  signedAt           DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  consultation       Consultation  @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  appointment        Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  portalLinks        ClientPortalLink[]
+  auditLogs          AuditLog[]
+}
+
+model DepositEvent {
+  id             String           @id @default(cuid())
+  consultationId String
+  actorId        String?
+  type           DepositEventType
+  amount         Int?
+  note           String?
+  externalReference String?
+  createdAt      DateTime         @default(now())
+  consultation   Consultation     @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  actor          User?            @relation("DepositEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+}
+
+model ArtistProfile {
+  id             String          @id @default(cuid())
+  studioId       String
+  userId         String?         @unique
+  displayName    String
+  slug           String
+  bio            String?
+  specialties    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  studio         Studio          @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  socialAccounts SocialAccount[]
+  campaignLinks  CampaignLink[]
+  socialLeads    SocialLead[]
+
+  @@unique([studioId, slug])
+}
+
+model SocialAccount {
+  id              String                 @id @default(cuid())
+  studioId        String
+  artistProfileId String?
+  platform        SocialPlatform
+  scope           SocialAccountScope
+  handle          String
+  platformUserId  String
+  status          SocialConnectionStatus @default(ACTIVE)
+  accessTokenEnc  String?
+  refreshTokenEnc String?
+  tokenExpiresAt  DateTime?
+  metadataJson    String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  studio          Studio                 @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  artistProfile   ArtistProfile?         @relation(fields: [artistProfileId], references: [id], onDelete: SetNull)
+  campaignLinks   CampaignLink[]
+  socialLeads     SocialLead[]
+
+  @@unique([platform, platformUserId])
+}
+
+model CampaignLink {
+  id              String          @id @default(cuid())
+  studioId        String
+  artistProfileId String?
+  socialAccountId String?
+  code            String          @unique
+  label           String
+  destinationPath String
+  sourceUrl       String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  studio          Studio          @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  artistProfile   ArtistProfile?  @relation(fields: [artistProfileId], references: [id], onDelete: SetNull)
+  socialAccount   SocialAccount?  @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  socialLeads     SocialLead[]
+}
+
+model SocialLead {
+  id                    String            @id @default(cuid())
+  studioId              String
+  artistProfileId       String?
+  socialAccountId       String?
+  campaignLinkId        String?
+  platform              SocialPlatform
+  externalLeadId        String?
+  captureMethod         LeadCaptureMethod
+  status                SocialLeadStatus  @default(NEW)
+  clientName            String?
+  preferredArtistName   String?
+  handle                String?
+  email                 String?
+  phone                 String?
+  placement             String?
+  style                 String?
+  budgetRange           String?
+  requestedWindow       String?
+  messageBody           String?
+  referenceSummary      String?
+  sourceUrl             String?
+  attributionSummary    String?
+  
+  // File uploads & confirmations
+  referenceImages       String?           // JSON array of {url: string, fileName: string, uploadedAt: string}
+  confirmationSentAt    DateTime?
+  confirmationSentVia   DeliveryChannel?
+  
+  // Missing field requests
+  infoRequestedAt       DateTime?
+  infoRequestedBy       String?           // userId of staff who requested
+  infoRequestedFields   String?           // JSON array of field names
+  infoRequestMessage    String?           // Custom message from staff
+  
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  studio                Studio            @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  artistProfile         ArtistProfile?    @relation(fields: [artistProfileId], references: [id], onDelete: SetNull)
+  socialAccount         SocialAccount?    @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  campaignLink          CampaignLink?     @relation(fields: [campaignLinkId], references: [id], onDelete: SetNull)
+  consultation          Consultation?
+  events                SocialLeadEvent[]
+  requestedByUser       User?             @relation("InfoRequestedBy", fields: [infoRequestedBy], references: [id], onDelete: SetNull)
+
+  @@unique([platform, externalLeadId])
+}
+
+model SocialLeadEvent {
+  id           String      @id @default(cuid())
+  socialLeadId String
+  type         String
+  details      String?
+  createdAt    DateTime    @default(now())
+  socialLead   SocialLead  @relation(fields: [socialLeadId], references: [id], onDelete: Cascade)
+}
+
+model ClientPortalLink {
+  id             String             @id @default(cuid())
+  token          String             @unique
+  purpose        ClientPortalPurpose
+  deliveryChannel DeliveryChannel?
+  deliveryStatus PortalDeliveryStatus @default(PENDING)
+  deliveryTarget String?
+  lastDeliveryError String?
+  consultationId String
+  consentFormId  String?
+  expiresAt      DateTime
+  lastSentAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  consultation   Consultation       @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  consentForm    ConsentForm?       @relation(fields: [consentFormId], references: [id], onDelete: Cascade)
+  deliveryAttempts PortalDeliveryAttempt[]
+
+  @@unique([consultationId, purpose])
+}
+
+model PortalDeliveryAttempt {
+  id           String               @id @default(cuid())
+  portalLinkId String
+  attemptNumber Int
+  status       PortalDeliveryStatus
+  channel      DeliveryChannel?
+  target       String?
+  errorMessage String?
+  attemptedAt  DateTime             @default(now())
+  portalLink   ClientPortalLink     @relation(fields: [portalLinkId], references: [id], onDelete: Cascade)
+
+  @@unique([portalLinkId, attemptNumber])
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  domain         AuditDomain
+  action         String
+  details        String?
+  actorId        String?
+  actorName      String
+  actorRole      UserRole?
+  ipAddress      String?
+  userAgent      String?
+  consultationId String?
+  consentFormId  String?
+  createdAt      DateTime     @default(now())
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  consentForm    ConsentForm?  @relation(fields: [consentFormId], references: [id], onDelete: SetNull)
+  actor          User?         @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  changes        AuditLogChange[]
+}
+
+model AuditLogChange {
+  id          String   @id @default(cuid())
+  auditLogId  String
+  fieldPath   String
+  beforeValue String?
+  afterValue  String?
+  auditLog    AuditLog @relation(fields: [auditLogId], references: [id], onDelete: Cascade)
+}
+
+model PaymentWebhookEvent {
+  id             String          @id @default(cuid())
+  provider       PaymentProvider
+  eventId        String          @unique
+  eventType      String
+  consultationId String?
+  signatureHeader String
+  payloadHash    String
+  payloadBody    String
+  signatureVerifiedAt DateTime
+  replayCount    Int             @default(0)
+  lastReplayedAt DateTime?
+  processedAt    DateTime        @default(now())
+}
