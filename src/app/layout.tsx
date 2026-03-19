@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className={`${displayFont.variable} ${bodyFont.variable} antialiased`}>
         <div className="pointer-events-none fixed right-3 top-3 z-50 sm:right-4 sm:top-4">
           <LiveDateTime variant="compact" />
