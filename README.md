@@ -79,9 +79,4 @@ To process signed payment webhooks, configure `STRIPE_SECRET_KEY` and `STRIPE_WE
 - Deposit failures, refunds, and short-paid balances automatically lock session readiness until the balance issue is resolved.
 - Seed data includes portal links, deposit events, and audit records for local development.
 
-## Next build steps
-
-1. Add role-aware permissions around deposits, scheduling, and design approvals.
-2. Connect reminders and aftercare messaging to email or SMS providers.
-3. Expand appointments into consent collection and session-day prep workflows.
-4. Replace placeholder modules like clients and consent forms with database-backed views.
+#
