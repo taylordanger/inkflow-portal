@@ -1,6 +1,7 @@
 import { compare } from "bcryptjs";
 import type { UserRole } from "@prisma/client";
 import { getServerSession, type NextAuthOptions } from "next-auth";
+import { cookies, headers } from "next/headers";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -125,8 +126,23 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET ?? "inkflow-local-dev-secret-change-me",
 };
 
-export function auth() {
-  return getServerSession(authOptions);
+export async function auth() {
+  const headerStore = await headers();
+  const cookieStore = await cookies();
+
+  const req = {
+    headers: Object.fromEntries(headerStore.entries()),
+    cookies: Object.fromEntries(cookieStore.getAll().map((c) => [c.name, c.value])),
+  };
+  const res = {
+    getHeader() {
+      return undefined;
+    },
+    setCookie() {},
+    setHeader() {},
+  };
+
+  return getServerSession(req as never, res as never, authOptions);
 }
 
 export async function requireUser() {
