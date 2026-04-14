@@ -12,6 +12,14 @@ Inkflow Portal is a tattoo studio SaaS concept built with Next.js. The current f
 - Digital consent records
 - Aftercare follow-up
 
+## Beta release scope
+
+The beta is now scoped to one critical path from intake to appointment readiness.
+
+- Full scope definition: `docs/beta-scope.md`
+- Core required flow: intake -> consultation -> deposit -> design approval -> appointment -> signed consent
+- Non-critical initiatives are deferred until after beta feedback
+
 ## Run locally
 
 ```bash
@@ -23,12 +31,15 @@ npm run dev
 
 Then open `http://localhost:3000`.
 
+Before a beta rollout, run `npm run smoke:staging` and review `docs/staging-smoke-checklist.md`.
+
 Use `frontdesk@inkflow.local` with password `inkflow-demo` to sign in.
 
 Public client entry points now exist at `/consult` for the studio-wide intake route and `/book/[artistSlug]` for artist-specific booking pages such as `/book/kai-moreno`.
 
 To send real consent or approval links, configure either `RESEND_API_KEY` plus `RESEND_FROM_EMAIL`, or `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER`.
 To process signed payment webhooks, configure `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, then point Stripe at `/api/webhooks/stripe` with a `consultationId` stored in the PaymentIntent metadata.
+To receive operational alerts for webhook and delivery failures, configure `ALERT_WEBHOOK_URL` (optionally `ALERT_WEBHOOK_BEARER_TOKEN`) to post alert payloads to your incident channel.
 
 ## Project shape
 
@@ -79,9 +90,12 @@ To process signed payment webhooks, configure `STRIPE_SECRET_KEY` and `STRIPE_WE
 - Deposit failures, refunds, and short-paid balances automatically lock session readiness until the balance issue is resolved.
 - Seed data includes portal links, deposit events, and audit records for local development.
 
-## Next build steps
+## Beta launch gates
 
-1. Add role-aware permissions around deposits, scheduling, and design approvals.
-2. Connect reminders and aftercare messaging to email or SMS providers.
-3. Expand appointments into consent collection and session-day prep workflows.
-4. Replace placeholder modules like clients and consent forms with database-backed views.
+1. End-to-end core flow reliability in staging, including key failure paths.
+2. Server-side role enforcement for all critical write actions.
+3. Verified payment webhook integrity and clear delivery-status handling for portal links.
+4. Staff smoke test checklist completed and no unresolved high-severity defects.
+
+See `docs/beta-scope.md` for in-scope, out-of-scope, and exit criteria.
+See `docs/staging-smoke-checklist.md` for the release smoke checklist and pass criteria.

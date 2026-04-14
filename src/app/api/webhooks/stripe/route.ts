@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { processStripeWebhookEvent, getStripeWebhookEvent } from "@/lib/payments";
+import { sendOperationalAlert } from "@/lib/monitoring";
+import {
+  buildWebhookPayloadHash,
+  processStripeWebhookEvent,
+  getStripeWebhookEvent,
+} from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +13,16 @@ export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
+    await sendOperationalAlert({
+      source: "stripe-webhook",
+      level: "warning",
+      summary: "Rejected Stripe webhook without signature",
+      details: "Incoming webhook request is missing stripe-signature header.",
+      context: {
+        path: "/api/webhooks/stripe",
+      },
+    });
+
     return NextResponse.json({ error: "Missing Stripe signature." }, { status: 400 });
   }
 
@@ -26,6 +41,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
+    await sendOperationalAlert({
+      source: "stripe-webhook",
+      level: "error",
+      summary: "Stripe webhook processing failed",
+      details: error instanceof Error ? error.message : "Webhook processing failed.",
+      context: {
+        path: "/api/webhooks/stripe",
+        payloadHash: buildWebhookPayloadHash(body),
+      },
+    });
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Webhook processing failed." },
       { status: 400 },

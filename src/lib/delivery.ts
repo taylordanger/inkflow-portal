@@ -2,6 +2,7 @@ import { DeliveryChannel, type ClientPortalPurpose } from "@prisma/client";
 import { Resend } from "resend";
 import twilio from "twilio";
 
+import { sendOperationalAlert } from "@/lib/monitoring";
 import { getPortalPath } from "@/lib/portals";
 
 export type DeliveryAttemptResult =
@@ -54,6 +55,18 @@ export async function deliverPortalLink(input: {
         target: input.email,
       };
     } catch (error) {
+      await sendOperationalAlert({
+        source: "portal-delivery",
+        level: "error",
+        summary: "Email portal delivery failed",
+        details: error instanceof Error ? error.message : "Email delivery failed.",
+        context: {
+          purpose: input.purpose,
+          channel: "EMAIL",
+          target: input.email,
+        },
+      });
+
       return {
         status: "failed",
         reason: error instanceof Error ? error.message : "Email delivery failed.",
@@ -85,12 +98,37 @@ export async function deliverPortalLink(input: {
         target: to,
       };
     } catch (error) {
+      await sendOperationalAlert({
+        source: "portal-delivery",
+        level: "error",
+        summary: "SMS portal delivery failed",
+        details: error instanceof Error ? error.message : "SMS delivery failed.",
+        context: {
+          purpose: input.purpose,
+          channel: "SMS",
+          target: input.phone,
+        },
+      });
+
       return {
         status: "failed",
         reason: error instanceof Error ? error.message : "SMS delivery failed.",
       };
     }
   }
+
+  await sendOperationalAlert({
+    source: "portal-delivery",
+    level: "warning",
+    summary: "Portal delivery provider unavailable",
+    details: "No delivery provider configured. Add Resend or Twilio credentials.",
+    context: {
+      purpose: input.purpose,
+      emailConfigured: Boolean(resendApiKey && resendFrom),
+      smsConfigured: Boolean(sid && authToken && fromNumber),
+      target: input.email,
+    },
+  });
 
   return {
     status: "unavailable",
